@@ -156,24 +156,38 @@ def pair_mag_refs(row, out_dir, gtdb_db):
 
 
 def parse_dnadiff(fi, fo):
-    if getsize(fi) != 0: # If the MAG was classified as a species
-        first_line = open(fi, 'r').readlines()[0].split()
+    if os.path.getsize(fi) != 0: # If the MAG was classified as a species
+        with open(fi, 'r') as f_in:
+            lines = f_in.readlines()
+
+        first_line = lines[0].split()
         ref = first_line[0]
         quer = first_line[1]
-        with open(fi, 'r') as f_in:
-            for line in f_in:
-                if "TotalBases" in line:
-                    cols = line.strip().split()
-                    lenref = int(cols[1])
-                    lenquer = int(cols[2])
-                if "AlignedBases" in line:
-                    cols = line.strip().split()
-                    aliref = cols[1].split("(")[-1].split("%")[0]
-                    alique = cols[2].split("(")[-1].split("%")[0]
-                if "AvgIdentity" in line:
-                    cols = line.strip().split()
-                    ident = float(cols[1])
-            output = "%s\t%s\t%i\t%.2f\t%i\t%.2f\t%.2f" % (quer, ref, lenref, float(aliref), lenquer, float(alique), float(ident))
+
+        in_mtom = False  # tracks whether we're inside the M-to-M alignment block
+        for line in lines:
+            stripped = line.strip()
+
+            if "TotalBases" in line:
+                cols = stripped.split()
+                lenref = int(cols[1])
+                lenquer = int(cols[2])
+            if "AlignedBases" in line:
+                cols = stripped.split()
+                aliref = cols[1].split("(")[-1].split("%")[0]
+                alique = cols[2].split("(")[-1].split("%")[0]
+
+            # AvgIdentity appears under both 1-to-1 and M-to-M; only take
+            # the one from the M-to-M block
+            if stripped.startswith("1-to-1"):
+                in_mtom = True
+            elif stripped == "":
+                in_mtom = False
+            elif in_mtom and stripped.startswith("AvgIdentity"):
+                cols = stripped.split()
+                ident = float(cols[1])
+
+        output = "%s\t%s\t%i\t%.2f\t%i\t%.2f\t%.2f" % (quer, ref, lenref, float(aliref), lenquer, float(alique), float(ident))
     else:
         quer = fi.split('/')[-1].replace('.fa', '')
         output = quer + '\tNone\t0\t0.00\t0\t0.00\t0.00'
